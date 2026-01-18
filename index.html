@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>塔羅占卜 (資料庫整合版)</title>
+    <style>
+        :root {
+            --card-w: 120px;
+            --card-h: 210px;
+        }
+
+        body { 
+            font-family: 'Helvetica', sans-serif; 
+            background: radial-gradient(circle at center, #1a1a1a, #000); 
+            color: white; 
+            margin: 0; 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+select {
+    /* ...原有設定... */
+    min-width: 110px; /* 確保有最小寬度 */
+    text-align: center;
+}
+
+/* 針對選單預設選項 (disabled) 的顏色調整 */
+select option[disabled] {
+    color: #888;
+    font-weight: bold;
+    background: #111;
+}
+
+@media (max-width: 600px) {
+    .controls {
+        gap: 8px; /* 手機版間距小一點 */
+    }
+    select {
+        font-size: 12px;
+        padding: 8px 4px;
+        max-width: 90px; /* 手機版縮小寬度以塞入一行 */
+    }
+}
+        /* --- 控制區 --- */
+        .controls {
+            position: absolute;
+            bottom: 40px;
+            z-index: 200;
+            display: flex;
+            gap: 20px;
+        }
+
+        button { 
+            padding: 12px 35px; 
+            font-size: 18px; 
+            cursor: pointer; 
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #d4af37; 
+            color: #d4af37; 
+            border-radius: 50px; 
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        button:hover:not(:disabled) { 
+            background: #d4af37; 
+            color: #000; 
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+            transform: translateY(-2px);
+        }
+        button:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+
+        /* --- 桌面區域 --- */
+        .table-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            perspective: 1200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- 卡片本體 --- */
+        .card {
+            width: var(--card-w);
+            height: var(--card-h);
+            position: absolute;
+            transform-style: preserve-3d;
+            left: 50%;
+            top: 50%;
+            margin-left: calc(var(--card-w) / -2);
+            margin-top: calc(var(--card-h) / -2);
+            transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+            transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* 扇形展開特效 */
+        .card.spread:hover {
+            z-index: 999 !important;
+            transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) translateY(-40px) scale(1.1);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.8);
+            transition: transform 0.2s ease-out; 
+        }
+        .card.spread { box-shadow: -5px 0 10px rgba(0,0,0,0.3); }
+
+        .card-inner {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d; transition: transform 0.8s;
+        }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+
+        .front, .back {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; border-radius: 10px; overflow: hidden;
+        }
+
+        .front {
+    /* 1. 設定背景圖片 */
+    background-image: url('images/back.jpg'); 
+    
+    /* 2. 確保圖片填滿且不重複 */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+
+    /* 3. 邊框顏色可以調整成跟圖片金色一致 */
+    border: 2px solid #d4af37; 
+    
+    /* 4. 加一點內陰影增加立體感 */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+}
+        .back {
+            background: #fff; transform: rotateY(180deg);
+            display: flex; flex-direction: column;
+        }
+        
+        .back-img-container { flex: 1; width: 100%; overflow: hidden; position: relative; }
+        .back img { width: 100%; height: 100%; object-fit: fill; }
+        
+	.back-text {
+ 	   padding: 4px 2px; /* 減少內距 */
+	}
+
+	/* 上方的「位置名稱」(如：過去、現在) */
+	.back-text div:first-child {
+ 	   font-size: 10px !important; /* 原本可能比較大，強制縮小 */
+  	  margin-bottom: 1px !important;
+  	  opacity: 0.9;
+	}
+
+/* 下方的「牌卡名稱」(如：愚者) */
+.card-name-text {
+    font-size: 10px !important; /* 設定為 11px 或 12px */
+    font-weight: bold;
+    line-height: 1.2;
+    text-overflow: ellipsis; /* 超出部分變... */
+}
+        
+/* 修改後的 .card.drawn */
+.card.drawn {
+    /* 1. 關鍵修正：取消原本 CSS 的置中偏移，交給 JS 控制 */
+    margin: 0 !important; 
+    
+    /* 2. 確保定位基準點在正中間 */
+    top: 50%;
+    left: 50%;
+
+    /* 3. 保留過渡動畫 */
+    transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ★★★ 關鍵設定：滑鼠懸停 (Hover) 效果 ★★★ */
+.card.drawn:hover {
+    /* 1. 層級變最高：確保被蓋住的牌會瞬間跑到最上面 */
+    z-index: 9999 !important; 
+    
+    /* 2. 視覺懸浮感：加深陰影，讓它看起來離背景更遠 */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7) !important;
+    
+    /* 3. 稍微打亮：讓選中的牌看起來發光 */
+    filter: brightness(1.1);
+    
+    /* 4. 滑鼠游標變手型 */
+    cursor: pointer;
+}
+/* 新增：下拉選單樣式 */
+select {
+    padding: 8px 12px;
+    font-size: 16px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #d4af37;
+    color: #d4af37;
+    border-radius: 4px;
+    outline: none;
+    margin-right: 5px;
+}
+select:hover {
+    background: #d4af37;
+    color: #000;
+}
+option {
+    background: #000;
+    color: #d4af37;
+}
+
+@media (max-width: 600px) {
+    select {
+        max-width: 100px; /* 手機版選單不要太寬 */
+        font-size: 12px;
+    }
+}
+
+        /* --- Modal 進階樣式 --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 2000;
+            display: none; justify-content: center; align-items: center;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .modal-content {
+            background: #1a1a1a; border: 2px solid #d4af37; color: #fff;
+            padding: 0; width: 90%; max-width: 550px; border-radius: 15px;
+            text-align: center; box-shadow: 0 0 40px rgba(212, 175, 55, 0.2);
+            transform: translateY(20px); transition: transform 0.3s;
+            overflow: hidden; display: flex; flex-direction: column;
+            max-height: 85vh;
+        }
+        .modal-header {
+            background: linear-gradient(90deg, #2c3e50, #000);
+            padding: 20px; border-bottom: 1px solid #d4af37;
+        }
+        .modal-title { color: #d4af37; font-size: 22px; font-weight: bold; margin: 0;}
+        .modal-subtitle { color: #aaa; font-size: 14px; margin-top: 5px; }
+        .modal-body {
+            padding: 20px; overflow-y: auto; flex: 1; text-align: left; line-height: 1.6; color: #ddd;
+        }
+        /* 第一層樣式 */
+        .image-desc-box {
+            background: rgba(255,255,255,0.05); padding: 15px;
+            border-radius: 8px; margin-bottom: 20px; font-size: 15px;
+            border-left: 3px solid #d4af37;
+        }
+        .category-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;
+        }
+        .cat-btn {
+            background: transparent; border: 1px solid #555; color: #ccc;
+            padding: 10px 5px; border-radius: 8px; cursor: pointer;
+            transition: all 0.2s; font-size: 14px;
+        }
+        .cat-btn:hover { background: #d4af37; color: #000; border-color: #d4af37; }
+        /* 第二層樣式 */
+        .detail-view { display: none; animation: fadeIn 0.3s; }
+        .detail-title {
+            color: #f1c40f; font-size: 18px; font-weight: bold; margin-bottom: 10px;
+            text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px;
+        }
+        .detail-content { font-size: 15px; margin-bottom: 20px; }
+        .back-btn {
+            width: 100%; padding: 10px; background: #444; color: white;
+            border: none; border-radius: 8px; cursor: pointer; margin-top: 10px;
+        }
+        .back-btn:hover { background: #666; }
+        .modal-footer { padding: 15px; background: #111; border-top: 1px solid #333; }
+        .modal-close {
+            background: #d4af37; color: #000; border: none; padding: 10px 40px;
+            border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="hint" id="statusText">請準備開始儀式</div>
+    <div class="table-area" id="tableArea"></div>
+
+<div class="controls">
+    <select id="categorySelector">
+        <option value="general">🔮 綜合運勢</option>
+        <option value="love">❤️ 愛情情感</option>
+        <option value="work">💼 工作事業</option>
+        <option value="finance">💰 財務金錢</option>
+        <option value="academic">🎓 學業考試</option>
+        <option value="friendship">🤝 人際關係</option>
+        <option value="family">🏠 家庭親情</option>
+    </select>
+
+    <select id="spreadBasic" onchange="changeSpread('basic')">
+        <option value="" disabled selected>🔰 基礎牌陣</option>
+        <option value="single">單張牌 (每日指引)</option>
+        <option value="time">時間之流 (過去/現在/未來)</option>
+	<option value="happiness">幸福指數 (本月運勢)</option>
+        <option value="self">自我探索 (了解自己的內心)</option>
+	<option value="find_partner">尋找對象占卜法</option>
+        <option value="choice">二擇一 (兩難選擇)</option>
+	<option value="friendship">友誼占卜 (雙方看法)</option> </select>
+    </select>
+
+    <select id="spreadAdv" onchange="changeSpread('adv')">
+        <option value="" disabled selected>✨ 進階牌陣</option>
+        <option value="hexagram">六芒星 (全方位)</option>
+        <option value="love_real">愛情真心 (了解自己和對方的心意)</option>
+        <option value="lovers_pyramid">戀人金字塔 (兩人發展的可能性)</option> 
+        <option value="celtic">克爾特十字 (尋找問題真正所在)</option>
+	<option value="future">未來發展占卜法</option>
+	<option value="karmic">卡爾米克 (探討自己的命運)</option>
+    </select>
+    <button id="btnShuffle" onclick="startRitual()">洗牌</button>
+    <button id="btnSpread" onclick="spreadDeck()" disabled>展開</button>
+    <button id="btnReset" onclick="resetGame()" style="display:none; border-color: #fff; color: #fff;">重置</button>
+</div>
+
+    <div class="modal-overlay" id="meaningModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">牌名</div>
+                <div class="modal-subtitle" id="modalStatus">正位 / 逆位</div>
+            </div>
+            <div class="modal-body">
+                <div id="mainView">
+                    <div class="image-desc-box">
+                        <strong style="color: #d4af37;">【牌面圖解】</strong><br>
+                        <span id="imageDescText">...</span>
+                    </div>
+                    <p style="text-align: center; color: #aaa; margin-bottom: 10px;">請選擇想了解的面向：</p>
+                    <div class="category-grid">
+                        <button class="cat-btn" onclick="showDetail('character')">👤 人物</button>
+                        <button class="cat-btn" onclick="showDetail('work')">💼 工作</button>
+                        <button class="cat-btn" onclick="showDetail('love')">❤️ 愛情</button>
+                        <button class="cat-btn" onclick="showDetail('friendship')">🤝 友情</button>
+                        <button class="cat-btn" onclick="showDetail('family')">🏠 親情</button>
+                        <button class="cat-btn" onclick="showDetail('academic')">🎓 學業</button>
+                        <button class="cat-btn" onclick="showDetail('finance')">💰 財務</button>
+                    </div>
+                </div>
+                <div id="detailView" class="detail-view">
+                    <div class="detail-title" id="detailTitle">類別標題</div>
+                    <div class="detail-content" id="detailContent">內容...</div>
+                    <button class="back-btn" onclick="backToMain()">⬅ 返回選單</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-close" onclick="closeModal()">關閉視窗</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="tarot-data.js"></script>
+<script>
+    // --- 設定與全域變數 ---
+    const TOTAL_CARDS = 78;
+    let cardsDOM = [];
+    let isSpread = false;
+    let hasDrawn = false;
+    let isAnimating = false; 
+    let currentResult = null;
+    let activeCardData = null;
+    let activeIsReversed = false;
+    let shuffledDeck = []; 
+
+    // --- 1. 定義牌陣資料 (完整版) ---
+    const SPREAD_DATA = {
+        // === 基礎牌陣 ===
+        'happiness': {
+            name: "幸福指數占卜法",
+            positions: [
+                "本週運程", 
+                "下週運程", 
+                "第三週運程", 
+                "第四週運程", 
+                "第五週運程"
+            ],
+            // 排列：橫向一字排開，分為五週
+            layout: [
+                {x: -240, y: 0},   // 1. 第一週 (最左)
+                {x: -120, y: 0},   // 2. 第二週
+                {x: 0, y: 0},      // 3. 第三週 (中間)
+                {x: 120, y: 0},    // 4. 第四週
+                {x: 240, y: 0}     // 5. 第五週 (最右)
+            ],
+            desc: "書中P.XX：預測整個月的每週運勢起伏。"
+        },
+        'single': {
+            name: "單張牌占卜",
+            positions: ["核心"],
+            layout: [{x: 0, y: 0}],
+            desc: "適合簡單的是非題或每日運勢。"
+        },
+        'time': {
+            name: "時間之流牌陣",
+            positions: ["過去的經驗", "現在的狀況", "未來的預測"],
+            layout: [
+                {x: -120, y: 0}, 
+                {x: 0, y: 0},    
+                {x: 120, y: 0}   
+            ],
+            desc: "檢視事情的來龍去脈。"
+        },
+        'self': {
+            name: "自我探索牌陣",
+            positions: ["內心深處", "精神生活", "知識領域", "感情生活"],
+            layout: [
+                {x: 0, y: 0},      // 1. 內心 (中心)
+                {x: 0, y: -250},   // 2. 精神 (上方)
+                {x: -200, y: 250}, // 3. 知識 (左下)
+                {x: 200, y: 250}   // 4. 感情 (右下)
+            ],
+            desc: "書中P.96：全方位了解自己的身心靈狀態。"
+        },
+        'find_partner': {
+            name: "尋找對象占卜法",
+            positions: [
+                "現在的心情和處境", 
+                "希望追求的類型", 
+                "你不喜歡的類型", 
+                "該採取的行動", 
+                "未來的發展"
+            ],
+            // 排列：呈 X 型 (骰子5點)，1在正中間，其他在四個角落
+            layout: [
+                {x: 0, y: 0},       // 1. 中心 (現況)
+                {x: -200, y: -200}, // 2. 左上 (喜歡類型)
+                {x: 200, y: -200},  // 3. 右上 (討厭類型)
+                {x: -200, y: 200},  // 4. 左下 (行動)
+                {x: 200, y: 200}    // 5. 右下 (未來)
+            ],
+            desc: "書中P.XX：專為單身者設計，預測愛情運勢與適合對象。"
+        },
+        'choice': {
+            name: "二擇一牌陣",
+            positions: ["現況", "選擇A的過程", "選擇B的過程", "選擇A的結果", "選擇B的結果"],
+            layout: [
+                {x: 0, y: 150},    
+                {x: -100, y: 0},       
+                {x: -180, y: -120},
+                {x: 100, y: 0},
+                {x: 180, y: -120}  
+            ],
+            desc: "面臨抉擇時使用。"
+        },
+        // === 進階牌陣 ===
+        'friendship': {
+            name: "友誼占卜法",
+            positions: [
+                "你對對方的看法", 
+                "對方對你的看法", 
+                "你認為目前關係", 
+                "對方認為目前關係", 
+                "你期望未來發展", 
+                "對方期望未來發展"
+            ],
+            // 排列：分為上下兩排，每排三張，一一對應
+            layout: [
+                {x: -120, y: -100},  // 1. 左上 (你看他)
+                {x: -120, y: 100},   // 2. 左下 (他看你)
+                {x: 0, y: -100},     // 3. 中上 (你認知的關係)
+                {x: 0, y: 100},      // 4. 中下 (他認知的關係)
+                {x: 120, y: -100},   // 5. 右上 (你期望的未來)
+                {x: 120, y: 100}     // 6. 右下 (他期望的未來)
+            ],
+            desc: "書中P.XX：透過上下對照，深度解析雙方對這段關係的看法落差。"
+        },
+        'celtic': {
+            name: "克爾特十字牌陣",
+            positions: [
+                "現況 (問題的核心)", "阻礙 (不可預知的因素)", "內在 (內心動機，問題根源)", 
+                "外在 (自我的期待，潛在可能性)", "過去 (你的信念、希望與恐懼)", "未來 (短期內會發生的事)", 
+                "自我 (面對事情的態度)", "環境 (別人對自己的看法；周遭環境)", "引導()這次事件讓你學到什麼", "結果 (問題最後的局面)"
+            ],
+            layout: [
+                {x: -150, y: 0},               // 1. 現況 (十字中心)
+                {x: -150, y: 0, rotate: 90},   // 2. 阻礙 (橫向交叉，壓在1上面)
+                {x: -150, y: -250},            // 3. 潛意識 (下)
+                {x: -150, y: 250},             // 4. 過去 (左)
+                {x: -250, y: 0},               // 5. 意識 (上)
+                {x: 0, y: 0},                  // 6. 未來 (右)
+                
+                // --- 右側權杖區 ---
+                {x: 180, y: 300},              // 7. 自我 (右下)
+                {x: 180, y: 100},               // 8. 環境
+                {x: 180, y: -100},              // 9. 願望
+                {x: 180, y: -300}              // 10. 結果 (右上)
+            ],    
+            desc: "最經典的十張牌陣，深度剖析問題的全貌。"
+        },
+        'hexagram': {
+            name: "六芒星牌陣",
+            // 這裡有 7 個位置名稱
+            positions: ["過去", "現在", "未來", "解決方法", "和這個事情有關的人或事的情況", "願望(你尚未發覺但卻是你心中真正的願望)", "結果"],
+            // 這裡有 7 組座標
+            layout: [
+                {x: 0, y: -200},   // 1. 過去 (上頂點)
+                {x: 150, y: 80},   // 2. 現在 (右下)
+                {x: -150, y: 80},  // 3. 未來 (左下)
+                {x: 0, y: 200},    // 4. 對策 (下頂點)
+                {x: -150, y: -80}, // 5. 環境 (左上)
+                {x: 150, y: -80},  // 6. 阻礙 (右上)
+                {x: 0, y: 0}       // 7. 結果 (正中心)
+            ],
+            desc: "全方位深入分析。"
+        },
+        'lovers_pyramid': {
+            name: "戀人金字塔 (7張)",
+            positions: [
+                "你對對方的想法", 
+                "對方對你的想法", 
+                "你對目前關係的看法", 
+                "雙方有無結婚打算", 
+                "你必須做的行動", 
+                "兩人目前的顧慮", 
+                "最後可能的結果"
+            ],
+            // 金字塔結構：底層是1，層層往上堆疊至7
+            layout: [
+                {x: 0, y: 220},     // 1. 底層 (基石)
+                {x: -130, y: 120},  // 2. 左側 (第二層)
+                {x: 130, y: 120},   // 3. 右側 (第二層)
+                {x: 0, y: 20},      // 4. 中間 (核心)
+                {x: -130, y: -80},  // 5. 左上 (行動)
+                {x: 130, y: -80},   // 6. 右上 (顧慮)
+                {x: 0, y: -180}     // 7. 塔頂 (結果)
+            ],
+            desc: "書中P.84：預測兩人發展可能性與結婚機率的流行牌陣。"
+        },
+        'karmic': {
+            name: "卡爾米克展開法 ",
+            positions: [
+                "你的宿命", 
+                "你的個性 ", 
+                "影響一輩子的重大事件", 
+                "這輩子的第二種影響", 
+                "你來這世界的目的", 
+                "這輩子能完成甚麼", 
+                "這輩子可以學到甚麼"
+            ],
+            // 排列：上下分層，中間核心。
+            // 1,2在右下，3,4在左下，5,6在上方，7在正中間
+            layout: [
+                {x: 180, y: 180},   // 1. 右下外 (宿命)
+                {x: 100, y: 180},   // 2. 右下內 (個性)
+                {x: -180, y: 180},  // 3. 左下外 (事件)
+                {x: -100, y: 180},  // 4. 左下內 (影響)
+                {x: 100, y: -150},  // 5. 右上 (目的)
+                {x: -100, y: -150}, // 6. 左上 (完成)
+                {x: 0, y: 0}        // 7. 正中 (學習)
+            ],
+            desc: "書中P.XX：探討命運與靈魂使命的深刻牌陣。"
+        },
+        'future': {
+            name: "未來發展占卜法 ",
+            positions: [
+                "目前的處境", 
+                "愛情的發展", 
+                "事業的發展", 
+                "財運的發展", 
+                "你的成就", 
+                "最後的結果"
+            ],
+            // 排列形狀：以現況為中心，向四方擴展，最後指向結果
+            layout: [
+                {x: 0, y: -250},       // 1. 現況 (正中心)
+                {x: -250, y: -100},    // 2. 障礙 (左 - 阻力)
+                {x: 250, y: -100},    // 3. 理想 (上 - 仰望)
+                {x: -250, y: 100},     // 4. 基礎 (下 - 根基)
+                {x: 250, y: 100},     // 5. 近期 (右 - 推進)
+                {x: 0, y: 250}      // 6. 結果 (最右 - 終點)
+            ],
+            desc: "書中P.XX：分析事件發展脈絡與最終結果的實用牌陣。"
+        },
+        'love_real': {
+            name: "愛情真心占卜法",
+            positions: [
+                "你的看法", "對方對你的看法", 
+                "兩人關係變化對你的影響", "兩人關係變化對對方的影響", 
+                "你未來的心情", "最後結果", 
+                "未來的障礙", "對方未來的心情"
+            ],
+            layout: [
+                {x: -150, y: -120}, {x: 150, y: -120},
+                {x: -0, y: -300},    {x: 0, y: -50},
+                {x: -0, y: 100},  {x: 0, y: 200},
+                {x: -140, y: 100},    {x: 140, y: 100}
+            ],
+            desc: "書中P.96：深度剖析雙方心意與未來發展。"
+        }
+    };
+
+    let currentSpreadKey = 'single'; // 預設牌陣
+    let drawnCount = 0;
+    let drawnResults = []; 
+    
+    // --- 切換選單邏輯 (雙選單互斥) ---
+    function changeSpread(source) {
+        const basicSelect = document.getElementById('spreadBasic');
+        const advSelect = document.getElementById('spreadAdv');
+
+        if (source === 'basic') {
+            // 如果選了基礎，就把進階選單歸零
+            advSelect.value = "";
+            currentSpreadKey = basicSelect.value;
+        } else if (source === 'adv') {
+            // 如果選了進階，就把基礎選單歸零
+            basicSelect.value = "";
+            currentSpreadKey = advSelect.value;
+        }
+
+        resetGameDataOnly();
+    }
+
+    // --- 初始化 ---
+    function init() {
+        const table = document.getElementById('tableArea');
+        table.innerHTML = "";
+        cardsDOM = [];
+        
+        // 預設順序
+        shuffledDeck = Array.from({length: TOTAL_CARDS}, (_, i) => i);
+
+        for (let i = 0; i < TOTAL_CARDS; i++) {
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.dataset.index = i;
+            // 初始位置歸零
+            el.style.setProperty('--tx', '0px');
+            el.style.setProperty('--ty', '0px');
+            el.style.setProperty('--rot', '0deg');
+            el.style.zIndex = i;
+            
+            el.innerHTML = `<div class="card-inner"><div class="front"></div><div class="back"></div></div>`;
+            el.onclick = () => onCardClick(el);
+            table.appendChild(el);
+            cardsDOM.push(el);
+        }
+        
+        // 更新狀態文字
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        if(spreadInfo) {
+             updateStatus(`目前模式：${spreadInfo.name}。請先選擇「占卜面向」並點擊「洗牌」`);
+        } else {
+             updateStatus("請點擊「洗牌」開始儀式");
+        }
+    }
+
+    function resetGameDataOnly() {
+        drawnCount = 0;
+        drawnResults = [];
+        hasDrawn = false;
+        isSpread = false;
+        // 重新生成 DOM 以重置所有卡片狀態
+        init(); 
+        document.getElementById('btnShuffle').style.display = 'inline-block';
+        document.getElementById('btnSpread').style.display = 'inline-block';
+        document.getElementById('btnSpread').disabled = true; // 洗牌前不能展開
+        document.getElementById('btnShuffle').disabled = false;
+        document.getElementById('btnReset').style.display = 'none';
+    }
+
+    // --- 洗牌邏輯 ---
+    function internalShuffle() {
+        // Fisher-Yates 洗牌
+        for (let i = shuffledDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
+        }
+    }
+
+    async function startRitual() {
+        document.getElementById('btnShuffle').disabled = true;
+        updateStatus("正在打亂牌陣...");
+        
+        internalShuffle(); // 邏輯洗牌
+
+        await animateMessyShuffle();
+        updateStatus("整理牌堆...");
+        await animateGather();
+        updateStatus("切牌...");
+        await animateCutDeck();
+        updateStatus("牌堆已淨化，請點擊「展開」");
+        document.getElementById('btnSpread').disabled = false;
+    }
+
+    function animateMessyShuffle() {
+        return new Promise(resolve => {
+            cardsDOM.forEach(card => {
+                const tx = (Math.random() - 0.5) * window.innerWidth * 0.8;
+                const ty = (Math.random() - 0.5) * window.innerHeight * 0.6;
+                const rot = (Math.random() - 0.5) * 720;
+                card.style.setProperty('--tx', tx + 'px');
+                card.style.setProperty('--ty', ty + 'px');
+                card.style.setProperty('--rot', rot + 'deg');
+            });
+            setTimeout(resolve, 1000);
+        });
+    }
+
+    function animateGather() {
+        return new Promise(resolve => {
+            cardsDOM.forEach((card, index) => {
+                card.style.setProperty('--tx', '0px');
+                card.style.setProperty('--ty', -index * 0.2 + 'px');
+                card.style.setProperty('--rot', '0deg');
+                card.style.zIndex = index;
+            });
+            setTimeout(resolve, 800);
+        });
+    }
+    
+    function animateCutDeck() {
+        return new Promise(resolve => {
+            const cutIndex = Math.floor(TOTAL_CARDS / 2);
+            cardsDOM.forEach((card, i) => {
+                if(i >= cutIndex) {
+                    card.style.setProperty('--tx', '120px');
+                    card.style.setProperty('--ty', -i * 0.2 + 'px');
+                    card.style.setProperty('--rot', '5deg');
+                } else {
+                    card.style.setProperty('--tx', '-120px');
+                    card.style.setProperty('--ty', -i * 0.2 + 'px');
+                    card.style.setProperty('--rot', '-5deg');
+                }
+            });
+            setTimeout(() => {
+                cardsDOM.forEach((card, index) => {
+                    card.style.setProperty('--tx', '0px');
+                    card.style.setProperty('--ty', -index * 0.2 + 'px');
+                    card.style.setProperty('--rot', '0deg');
+                });
+                setTimeout(resolve, 800);
+            }, 800);
+        });
+    }
+
+    function spreadDeck() {
+        isSpread = true;
+        document.getElementById('btnSpread').disabled = true;
+        document.getElementById('btnShuffle').style.display = 'none';
+        document.getElementById('btnSpread').style.display = 'none';
+        
+        const isMobile = window.innerWidth < 600;
+        const angleRange = isMobile ? 100 : 140; 
+        const radius = isMobile ? 300 : 500; 
+        const yOffset = isMobile ? 250 : 350;
+        const startAngle = -(angleRange / 2); 
+        const step = angleRange / (TOTAL_CARDS - 1);
+
+        cardsDOM.forEach((card, index) => {
+            const angle = startAngle + (index * step);
+            const radian = angle * (Math.PI / 180);
+            const x = radius * Math.sin(radian);
+            const y = -radius * Math.cos(radian) + yOffset; 
+            
+            card.classList.add('spread'); 
+            
+            // 扇形展開時，只需要簡單的旋轉與位移
+            card.style.setProperty('--tx', x + 'px');
+            card.style.setProperty('--ty', y + 'px');
+            card.style.setProperty('--rot', angle + 'deg');
+            card.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg)`;
+            
+            card.style.zIndex = index;
+        });
+
+        // 提示第一張牌
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        updateStatus(`請憑直覺抽出第 1 張牌：【${spreadInfo.positions[0]}】`);
+    }
+
+    // --- 核心：點擊抽牌 (含座標飛行邏輯) ---
+    function onCardClick(card) {
+        if (isAnimating) return;
+
+        // 1. 如果點擊已翻開的牌 -> 顯示詳細解釋
+        if (card.classList.contains('flipped')) {
+            const resultIndex = parseInt(card.dataset.drawnIndex); 
+            currentResult = drawnResults[resultIndex];
+            showModal();
+            return;
+        }
+
+        // 2. 檢查牌陣上限
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        if (drawnCount >= spreadInfo.positions.length) {
+            updateStatus("牌陣已滿，請點擊已翻開的牌查看解釋。");
+            return;
+        }
+
+        if (!isSpread || hasDrawn) {
+            if(!isSpread) return;
+        }
+        
+        // 3. 執行抽牌
+        isAnimating = true;
+        
+        const cardDOMIndex = parseInt(card.dataset.index);
+        const drawId = shuffledDeck[cardDOMIndex]; 
+        const isReversed = Math.random() < 0.5;
+
+        const currentPosName = spreadInfo.positions[drawnCount];
+        const currentLayout = spreadInfo.layout[drawnCount]; 
+
+        let data = null;
+        if (typeof getCardData === 'function') {
+            data = getCardData(drawId);
+        } else {
+            data = { name: "資料讀取失敗", id: drawId };
+        }
+
+        drawnResults.push({
+            id: drawId,
+            name: data.name,
+            isReversed: isReversed,
+            positionName: currentPosName,
+            index: drawnCount
+        });
+
+        card.dataset.drawnIndex = drawnCount;
+        card.classList.remove('spread');
+        card.classList.add('drawn');
+        
+        // ★ 座標與大小調整 ★
+        const isMobile = window.innerWidth < 600;
+        
+        // 1. 牌與牌的間距 (手機版縮小間距以免跑出螢幕)
+        const spaceScale = isMobile ? 0.55 : 1; 
+        const finalX = currentLayout.x * spaceScale;
+        const finalY = currentLayout.y * spaceScale;
+
+        // 2. 牌本身的放大倍率
+        const sizeScale = isMobile ? 1.15 : 1.4; 
+
+        // 3. 座標定位 (使用 calc 修正中心點)
+        let rotateDeg = 0;
+        if (currentLayout.rotate) {
+            rotateDeg = currentLayout.rotate;
+        }
+        
+        card.style.transform = `translate(calc(-50% + ${finalX}px), calc(-50% + ${finalY}px)) rotate(${rotateDeg}deg) scale(${sizeScale})`;
+        card.style.zIndex = 100 + drawnCount;
+
+        updateStatus(`解讀中：${currentPosName}...`);
+
+        setTimeout(() => {
+            const backDiv = card.querySelector('.back');
+            const imgPath = `images/${drawId}.jpg`;
+
+            backDiv.innerHTML = `
+                <div class="back-img-container">
+                    <img src="${imgPath}" style="${isReversed ? 'transform: rotate(180deg)' : ''}" onerror="this.src='https://via.placeholder.com/300x525?text=${encodeURIComponent(data.name)}'">
+                </div>
+                <div class="back-text">
+                    <div style="font-size:12px; color:#d4af37; margin-bottom:2px;">[${drawnCount+1}] ${currentPosName}</div>
+                    <div class="card-name-text">${data.name}</div>
+                </div>
+            `;
+            
+            card.classList.add('flipped');
+            drawnCount++;
+            
+            if (drawnCount < spreadInfo.positions.length) {
+                updateStatus(`已抽出【${currentPosName}】，下張：【${spreadInfo.positions[drawnCount]}】`);
+            } else {
+                updateStatus("牌陣完成！請點擊各張牌查看詳細解讀。");
+                document.getElementById('btnReset').style.display = 'inline-block';
+                hasDrawn = true;
+            }
+            isAnimating = false;
+
+        }, 600);
+    }
+
+    // --- 詳細視窗 ---
+    function showModal() {
+        if(!currentResult) return;
+        let data = getCardData(currentResult.id);
+        if (!data) return;
+
+        activeCardData = data;
+        activeIsReversed = currentResult.isReversed;
+        
+        document.getElementById('modalTitle').innerHTML = 
+            `<span style="font-size:0.6em; color:#d4af37; display:block;">位置 ${currentResult.index + 1}：${currentResult.positionName}</span>` + 
+            data.name;
+
+        document.getElementById('modalStatus').innerText = activeIsReversed ? "【逆位】 Reversed" : "【正位】 Upright";
+        document.getElementById('modalStatus').style.color = activeIsReversed ? "#e74c3c" : "#2ecc71";
+        document.getElementById('imageDescText').innerText = data.image_desc || "暫無圖解資料";
+
+        // ★ 自動切換面向
+        const selectedCategory = document.getElementById('categorySelector').value;
+        
+        // 檢查該類別是否存在
+        if (activeCardData.categories && activeCardData.categories[selectedCategory]) {
+            showDetail(selectedCategory);
+            document.getElementById('mainView').style.display = 'none'; 
+        } else {
+            // 若無資料則顯示預設圖解
+            document.getElementById('mainView').style.display = 'block';
+            document.getElementById('detailView').style.display = 'none';
+        }
+        document.getElementById('meaningModal').classList.add('active');
+    }
+
+    function showDetail(categoryKey) {
+        if (!activeCardData || !activeCardData.categories || !activeCardData.categories[categoryKey]) {
+            alert("此項目暫無詳細資料");
+            return;
+        }
+        const catData = activeCardData.categories[categoryKey];
+        document.getElementById('detailTitle').innerText = catData.label;
+        const content = activeIsReversed ? catData.reversed : catData.upright;
+        
+        document.getElementById('detailContent').innerHTML = `
+            <div style="margin-bottom: 10px; color: #aaa; font-size: 13px;">
+                ${activeIsReversed ? "▼ 逆位指引" : "▲ 正位指引"}
+            </div>
+            <div style="line-height: 1.8; color: #fff;">${content}</div>
+        `;
+        document.getElementById('mainView').style.display = 'none';
+        document.getElementById('detailView').style.display = 'block';
+    }
+
+    function backToMain() {
+        document.getElementById('detailView').style.display = 'none';
+        document.getElementById('mainView').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('meaningModal').classList.remove('active');
+    }
+    
+    // 點擊視窗外部關閉
+    document.getElementById('meaningModal').onclick = function(e) {
+        if(e.target === this) closeModal();
+    }
+
+    function resetGame() {
+        location.reload();
+    }
+
+    function updateStatus(text) {
+        const el = document.getElementById('statusText');
+        el.innerText = text;
+        el.style.opacity = 1;
+    }
+
+    // 啟動程式
+    init();
+</script>
+</body>
+</html>
