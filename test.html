@@ -41,6 +41,7 @@
             -webkit-text-size-adjust: 100%;
             text-size-adjust: 100%;
         }
+
 .modal-card-img-container {
     text-align: center;
     padding-bottom: 20px;
@@ -53,7 +54,39 @@
     border-color: #fff;
     z-index: 1000 !important;
 }
+#focusOverlay {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: #000; /* 全黑背景 */
+    z-index: 40000; /* 比所有東西都高 */
+    display: none; /* 預設隱藏 */
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center;
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out; /* 緩慢淡入淡出 */
+}
 
+.focus-text {
+    color: #d4af37;
+    font-size: 24px;
+    letter-spacing: 5px;
+    font-weight: 300;
+    animation: breathe 3s infinite ease-in-out; /* 文字呼吸效果 */
+}
+
+@keyframes breathe {
+    0%, 100% { opacity: 0.6; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* 讓控制面板有淡出動畫效果 */
+.controls, .hint {
+    transition: opacity 0.5s;
+}
 .modal-card-img {
     width: 150px; /* 設定適當寬度 */
     max-width: 70%;
@@ -64,6 +97,43 @@
     transition: transform 0.3s; /* 旋轉時有動畫 */
     margin-top: 10px;
 }
+/* ★★★ 強制修正版：頂部提示文字 ★★★ */
+        .hint {
+            position: absolute !important;
+            top: 15% !important; /* 強制往下移，不要貼在最上面 */
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 20002 !important; /* ★ 關鍵：設定超高層級，確保浮在所有牌跟視窗上面 */
+            
+            /* 外觀設定：黑底金邊，超高辨識度 */
+            background: rgba(0, 0, 0, 0.9) !important;
+            color: #f1c40f !important;
+            border: 2px solid #f1c40f !important;
+            border-radius: 50px !important;
+            padding: 15px 40px !important;
+            
+            /* 文字設定 */
+            font-size: 20px !important;
+            font-weight: bold !important;
+            letter-spacing: 2px !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            
+            /* 發光特效 */
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.5) !important;
+            pointer-events: none; /* 讓點擊穿透，不擋住下面的操作 */
+            transition: all 0.3s ease;
+        }
+
+        /* 手機版特別調整 */
+        @media (max-width: 600px) {
+    select {
+        max-width: none !important; /* ★★★ 強制取消 100px 限制 ★★★ */
+        width: 100% !important;     /* 確保佔滿 */
+        font-size: 16px !important; /* 字體大一點比較好點 */
+        margin-bottom: 10px;        /* 加點間距 */
+            }
+    }
 .nav-btn {
     position: absolute;
     top: 50%;
@@ -86,78 +156,179 @@
 .nav-btn.prev { left: 10px; }
 .nav-btn.next { right: 10px; }
 
-/* 如果是手機版，按鈕稍微小一點，避免遮擋內容 */
-@media (max-width: 600px) {
-    .nav-btn {
-        padding: 5px 10px;
-        font-size: 18px;
-        background: rgba(0,0,0,0.8);
-    }
-}
-select {
-    /* ...原有設定... */
-    min-width: 110px; /* 確保有最小寬度 */
-    text-align: center;
-}
+            :root {
+                --card-w: 80px; 
+                --card-h: 140px;
+            }
 
-/* 針對選單預設選項 (disabled) 的顏色調整 */
-select option[disabled] {
-    color: #888;
-    font-weight: bold;
-    background: #111;
-}
+            /* 1. 頂部提示文字：允許自動換行 */
+            .hint {
+                top: 12% !important;           /* 位置稍微下來一點 */
+                font-size: 15px !important;
+                padding: 10px 20px !important;
+                width: 85% !important;         /* 限制寬度 */
+                white-space: normal !important; /* ★ 關鍵：允許文字換行 ★ */
+                line-height: 1.5 !important;    /* 增加行高，閱讀舒適 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
 
-            @media (max-width: 600px) {
+            /* 2. 控制面板：維持原本的 Grid 排版 (位置不變) */
+            .controls {
+                bottom: 0; 
+                padding: 15px 15px 35px 15px; 
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                gap: 10px; 
+                background: rgba(0,0,0,0.95);
+                box-sizing: border-box; 
+                
+                display: grid; 
+                grid-template-columns: 1fr 1fr; /* 維持左右兩欄 */
+                grid-template-rows: auto;
+                left: 0; 
+            }
+
+            /* 3. 統一樣式：讓選單(Select) 跟 按鈕(Button) 長得一樣高、一樣大 */
+            #categorySelector, 
+            #spreadBasic, 
+            #spreadAdv, 
+            #btnShuffle, 
+            #btnSpread {
+                font-size: 16px;      /* 字體統一 */
+                padding: 15px 5px;    /* ★ 關鍵：內距加大，讓它們跟按鈕一樣高 ★ */
+                border-radius: 10px;
+                box-sizing: border-box;
+                height: auto;         /* 讓 padding 撐開高度 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* 位置設定 (維持不變) */
+            #categorySelector {
+                grid-column: 1 / -1; /* 跨滿整行 */
+                width: 100%;
+                /* 修飾選單箭頭位置 */
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: rgba(0, 0, 0, 0.8);
+                border: 1px solid #d4af37;
+                background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23d4af37%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+                background-repeat: no-repeat;
+                background-position: right 15px top 50%;
+                background-size: 12px auto;
+                text-align-last: center;
+            }
+
+            #spreadBasic, #spreadAdv {
+                grid-column: span 1; /* 各佔一半 */
+                width: 100%;
+                font-size: 14px; /* 字稍微小一點以免擠不下 */
+                /* 修飾選單 */
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: rgba(0, 0, 0, 0.8);
+                border: 1px solid #d4af37;
+                text-align-last: center;
+            }
+
+            #btnShuffle, #btnSpread {
+                grid-column: span 1; /* 各佔一半 */
+                width: 100%;
+            }
+
+            /* 解牌按鈕維持特大號 */
+            #btnReveal {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding: 18px 0;
+                font-size: 20px;
+                font-weight: bold;
+                background: rgba(241, 196, 15, 0.15);
+                margin-top: 5px;
+                border-radius: 10px;
+            }
+            
+            #btnReset {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding: 12px;
+                border-radius: 10px;
+            }
+        }@media (max-width: 600px) {
             :root {
                 --card-w: 80px; 
                 --card-h: 140px;
             }
 
             .controls {
-                bottom: 0; /* 貼底 */
-                padding: 15px 15px 30px 15px; /* 底部留白給 iPhone 黑條 */
+                bottom: 0; 
+                /* 加大底部留白，避免碰到 iPhone 的 Home Bar */
+                padding: 20px 20px 40px 20px; 
                 width: 100%;
-                border-radius: 20px 20px 0 0;
-                gap: 10px;
-                background: rgba(0,0,0,0.9);
+                border-radius: 25px 25px 0 0;
+                gap: 15px; /* 增加按鈕之間的間距 */
+                background: rgba(0,0,0,0.95);
                 box-sizing: border-box; 
                 
-                /* ★ 關鍵修改：強制改用 Grid 網格 */
                 display: grid; 
-                grid-template-columns: 1fr 1fr; /* 分兩欄 */
-                grid-template-rows: auto auto auto; /* 自動三行 */
+                grid-template-columns: 1fr 1fr; /* 兩欄 */
+                grid-template-rows: auto;
                 left: 0; 
             }
 
-            /* 第一行：綜合運勢 (跨兩欄) */
-            #categorySelector {
-                grid-column: 1 / -1; 
+            /* 1. 運勢選單：加大高度與字體 */
+            #spreadBasic, 
+            #spreadAdv, 
+            #btnShuffle, 
+            #btnSpread {
+                grid-column: 1 / -1 !important; 
                 width: 100%;
+                font-size: 18px; /* 字體變大 */
+                border-radius: 12px;
+                 margin-bottom: 5px; /* 加一點間距比較好看 */
             }
-
-            /* 第二行：基礎 與 進階 (各佔一欄) */
-            #spreadBasic, #spreadAdv {
-                width: 100%;
-                font-size: 13px;
-                padding: 10px 5px;
-            }
-
-            /* 第三行：按鈕 (明確指定各佔一格) */
+            /* 3. 洗牌與展開按鈕：加大 */
             #btnShuffle, #btnSpread {
                 width: 100%;
-                padding: 12px 0;
-                font-size: 16px;
-                grid-column: span 1; 
+                padding: 15px 0; /* 高度增加 */
+                font-size: 18px; /* 字體變大 */
+                border-radius: 12px;
+                font-weight: bold;
+            }
+
+            /* 4. 開始解牌按鈕：特大號 */
+            #btnReveal {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding: 20px 0; /* 變得非常高，超好按 */
+                font-size: 22px; /* 字體特大 */
+                font-weight: bold;
+                background: rgba(241, 196, 15, 0.15);
+                margin-top: 10px;
+                border-width: 2px;
+                border-radius: 12px;
             }
             
-            /* 重置按鈕 */
+            /* 5. 重置按鈕 */
             #btnReset {
                 grid-column: 1 / -1;
                 width: 100%;
-                padding: 12px;
+                padding: 15px;
+                font-size: 16px;
+                margin-top: 5px;
+                border-radius: 12px;
+            }
+
+            /* Modal 箭頭也順便加大，避免誤觸 */
+            .nav-btn { 
+                padding: 15px 20px; 
+                font-size: 24px; 
             }
         }
-
+}
         /* --- 桌面區域 --- */
         .table-area {
             position: relative;
@@ -189,7 +360,11 @@ select option[disabled] {
         /* 扇形展開特效 */
         .card.spread:hover {
             z-index: 999 !important;
-            transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) translateY(-40px) scale(1.1);
+            
+            /* ★★★ 修改：在這一行最後面加上 !important ★★★ */
+            /* 這樣才能覆蓋掉 JS 設定的座標，讓牌浮起來 */
+            transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) translateY(-40px) scale(1.1) !important;
+            
             box-shadow: 0 15px 30px rgba(0,0,0,0.8);
             transition: transform 0.2s ease-out; 
         }
@@ -307,11 +482,13 @@ option {
         font-size: 12px;
     }
 }
-
-        /* --- Modal 進階樣式 --- */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 2000;
+            background: rgba(0,0,0,0.85); 
+            
+            /* ★★★ 修改這裡：層級要比 hint (20002) 還高，這樣視窗才會蓋過文字 ★★★ */
+            z-index: 30000 !important; 
+            
             display: none; justify-content: center; align-items: center;
             opacity: 0; transition: opacity 0.3s;
         }
@@ -373,6 +550,9 @@ option {
 
     <div class="hint" id="statusText">請準備開始儀式</div>
     <div class="table-area" id="tableArea"></div>
+<div id="focusOverlay">
+    <div class="focus-text">請想著你的問題...</div>
+</div>
 
 <div class="controls">
     <select id="categorySelector">
@@ -393,7 +573,7 @@ option {
         <option value="self">自我探索 (了解自己的內心)</option>
 	<option value="find_partner">尋找對象占卜法</option>
         <option value="choice">二擇一 (兩難選擇)</option>
-	<option value="friendship">友誼占卜 (雙方看法)</option> </select>
+	<option value="friendship">友誼占卜 (雙方看法)</option>
     </select>
 
     <select id="spreadAdv" onchange="changeSpread('adv')">
@@ -625,15 +805,48 @@ option {
         }
     }
 
-    async function startRitual() {
+async function startRitual() {
+        // 1. 取得介面元素
+        const overlay = document.getElementById('focusOverlay');
+        const controls = document.querySelector('.controls');
+        const hint = document.getElementById('statusText');
+        
+        // 2. 隱藏介面，顯示冥想畫面
+        controls.style.opacity = '0'; 
+        hint.style.opacity = '0';
+        overlay.style.display = 'flex'; 
+        void overlay.offsetWidth; 
+        overlay.style.opacity = '1';
+        
+        // 3. 等待 3 秒 (冥想時間)
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // ★★★ 隱藏下拉選單，只留下按鈕 (這是你上一個需求) ★★★
+        document.getElementById('categorySelector').style.display = 'none';
+        document.getElementById('spreadBasic').style.display = 'none';
+        document.getElementById('spreadAdv').style.display = 'none';
+
+        // 4. 淡出冥想畫面，顯示回介面
+        overlay.style.opacity = '0';
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        overlay.style.display = 'none';
+        hint.style.opacity = '1'; 
+        controls.style.opacity = '1';
+
+        // 5. 開始執行洗牌動畫邏輯
         document.getElementById('btnShuffle').disabled = true;
         updateStatus("正在打亂牌陣...");
         internalShuffle();
+        
         await animateMessyShuffle();
+        
         updateStatus("整理牌堆...");
         await animateGather();
+        
         updateStatus("切牌...");
         await animateCutDeck();
+        
+        // 6. 動畫結束，啟用展開按鈕
         updateStatus("牌堆已淨化，請點擊「展開」");
         document.getElementById('btnSpread').disabled = false;
     }
@@ -785,8 +998,7 @@ option {
             }
         }
     }
-
-    // --- 批次佈陣動畫 ---
+// --- 批次佈陣動畫 (修改版：加入動態等比例縮放) ---
     function performBatchPlacement() {
         isAnimating = true;
         const spreadInfo = SPREAD_DATA[currentSpreadKey];
@@ -825,18 +1037,35 @@ option {
             card.classList.remove('selected'); 
             card.classList.add('drawn');       
 
-            // 計算最終座標
-            const isMobile = window.innerWidth < 600;
-            const spaceScale = isMobile ? 0.45 : 1;
-            // 手機版比例縮小，避免爆版
-            const sizeScale = isMobile ? 0.65 : 1.4;
+            // ★★★ 修改重點：動態計算縮放比例 (Dynamic Scale) ★★★
+            const screenW = window.innerWidth;
+            const isMobile = screenW < 600;
+            
+            // 1. 計算空間與位置的縮放 (避免牌重疊太嚴重)
+            const spaceScale = isMobile ? 0.45 : 1; 
+
+            // 2. 計算卡片本身的縮放大小 (依據螢幕寬度等比例調整)
+            let sizeScale;
+            if (isMobile) {
+                // 手機版：根據螢幕寬度計算，讓牌盡量大但不出界
+                // 公式：螢幕越寬，牌越大。限制在 0.6 ~ 0.9 倍之間
+                sizeScale = screenW / 500; 
+                if (sizeScale > 0.9) sizeScale = 0.9; // 最大不超過 0.9
+                if (sizeScale < 0.6) sizeScale = 0.6; // 最小不低於 0.6
+            } else {
+                // 電腦版：固定放大 1.4 倍
+                sizeScale = 1.4;
+            }
             
             const finalX = currentLayout.x * spaceScale;
             const finalY = currentLayout.y * spaceScale;
+            
+            // 如果牌陣設計有旋轉角度，則讀取；否則為 0
             let rotateDeg = currentLayout.rotate || 0;
 
             // 設定動畫延遲，讓牌一張一張飛過去
             setTimeout(() => {
+                // 這裡的 scale(${sizeScale}) 就是控制等比例縮放的關鍵
                 card.style.transform = `translate(calc(-50% + ${finalX}px), calc(-50% + ${finalY}px)) rotate(${rotateDeg}deg) scale(${sizeScale})`;
                 card.style.zIndex = 100 + index;
                 
@@ -858,17 +1087,37 @@ option {
         // 3. 動畫結束後顯示按鈕
         setTimeout(() => {
             updateStatus("牌陣已完成，請點擊下方「開始解牌」");
-            document.getElementById('btnReveal').style.display = 'inline-block';
-            document.getElementById('btnReset').style.display = 'inline-block';
+    
+            const btnReveal = document.getElementById('btnReveal');
+            const btnReset = document.getElementById('btnReset');
+    
+            btnReveal.style.display = 'block'; 
+            btnReset.style.display = 'block';
+    
             hasDrawn = true;
             isAnimating = false;
         }, selectedCardsDOM.length * 200 + 500);
     }
-
     function startReveal() {
         if (drawnResults.length === 0) return;
+        
         currentViewingIndex = 0;
         showModal();
+
+        // ★★★ 修改重點 2：開始解牌後，隱藏所有選單與操作按鈕，只留重置 ★★★
+        document.getElementById('categorySelector').style.display = 'none';
+        document.getElementById('spreadBasic').style.display = 'none';
+        document.getElementById('spreadAdv').style.display = 'none';
+        document.getElementById('btnShuffle').style.display = 'none';
+        document.getElementById('btnSpread').style.display = 'none';
+        
+        // 隱藏「開始解牌」按鈕自己
+        document.getElementById('btnReveal').style.display = 'none';
+
+        // 確保「重置」按鈕是顯示的 (且因為是 Grid 排版，它會自動補位)
+        const btnReset = document.getElementById('btnReset');
+        btnReset.style.display = 'inline-block';
+        // 如果希望重置按鈕這時候變大或滿版，可以在這裡動態調整 class，或是依賴 CSS Grid 自動填滿
     }
 
     function navigateCard(direction) {
