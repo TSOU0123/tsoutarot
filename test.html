@@ -13,7 +13,1306 @@
             gap: 20px;
             background: rgba(0,0,0,0.5);
             padding: 15px;
+            border-radius: 50px;<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>塔羅占卜 (資料庫整合版)</title>
+    <style>
+	.controls {
+            position: absolute;
+            bottom: 40px;
+            z-index: 200;
+            display: flex; /* 電腦版維持一排 */
+            gap: 20px;
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
             border-radius: 50px;
+        }
+        :root {
+            --card-w: 120px;
+            --card-h: 210px;
+        }
+
+        body { 
+            font-family: 'Helvetica', sans-serif; 
+            background: radial-gradient(circle at center, #1a1a1a, #000); 
+            color: white; 
+            margin: 0; 
+            
+            /* ★★★ 修改：改用 dvh (動態視窗高度)，解決手機網址列遮擋問題 ★★★ */
+            height: 100dvh; 
+            
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+
+            /* ★★★ 新增：禁止手指觸控縮放行為 ★★★ */
+            touch-action: pan-x pan-y; 
+            
+            /* ★★★ 新增：防止手機橫直向切換時文字忽大忽小 ★★★ */
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
+
+.modal-card-img-container {
+    text-align: center;
+    padding-bottom: 20px;
+    margin-top: 20px;
+    border-top: 1px solid #333; /* 加一條分隔線 */
+}
+
+.card.selected {
+    box-shadow: 0 0 15px #f1c40f, 0 0 30px #f1c40f !important;
+    border-color: #fff;
+    z-index: 1000 !important;
+}
+#focusOverlay {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: #000; /* 全黑背景 */
+    z-index: 40000; /* 比所有東西都高 */
+    display: none; /* 預設隱藏 */
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center;
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out; /* 緩慢淡入淡出 */
+}
+
+.focus-text {
+    color: #d4af37;
+    font-size: 24px;
+    letter-spacing: 5px;
+    font-weight: 300;
+    animation: breathe 3s infinite ease-in-out; /* 文字呼吸效果 */
+}
+
+@keyframes breathe {
+    0%, 100% { opacity: 0.6; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* 讓控制面板有淡出動畫效果 */
+.controls, .hint {
+    transition: opacity 0.5s;
+}
+.modal-card-img {
+    width: 150px; /* 設定適當寬度 */
+    max-width: 70%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    border: 2px solid #d4af37;
+    transition: transform 0.3s; /* 旋轉時有動畫 */
+    margin-top: 10px;
+}
+/* ★★★ 強制修正版：頂部提示文字 ★★★ */
+        .hint {
+            position: absolute !important;
+            top: 15% !important; /* 強制往下移，不要貼在最上面 */
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 20002 !important; /* ★ 關鍵：設定超高層級，確保浮在所有牌跟視窗上面 */
+            
+            /* 外觀設定：黑底金邊，超高辨識度 */
+            background: rgba(0, 0, 0, 0.9) !important;
+            color: #f1c40f !important;
+            border: 2px solid #f1c40f !important;
+            border-radius: 50px !important;
+            padding: 15px 40px !important;
+            
+            /* 文字設定 */
+            font-size: 20px !important;
+            font-weight: bold !important;
+            letter-spacing: 2px !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            
+            /* 發光特效 */
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.5) !important;
+            pointer-events: none; /* 讓點擊穿透，不擋住下面的操作 */
+            transition: all 0.3s ease;
+        }
+
+        /* 手機版特別調整 */
+        @media (max-width: 600px) {
+    select {
+        max-width: none !important; /* ★★★ 強制取消 100px 限制 ★★★ */
+        width: 100% !important;     /* 確保佔滿 */
+        font-size: 16px !important; /* 字體大一點比較好點 */
+        margin-bottom: 10px;        /* 加點間距 */
+            }
+    }
+/* 請找到原本的 .nav-btn 並替換成下面這段 */
+.nav-btn {
+    background: rgba(20, 20, 20, 0.6); /* 加入半透明背景增加辨識度 */
+    border: 1px solid #d4af37;
+    color: #d4af37;
+    font-size: 20px; /* 調整箭頭大小 */
+    cursor: pointer;
+    transition: all 0.3s;
+    
+    /* ★★★ 關鍵修改：製作圓形按鈕 ★★★ */
+    width: 44px;            /* 設定固定寬度 */
+    height: 44px;           /* 設定固定高度 (需與寬度相同) */
+    border-radius: 50%;     /* 設定為圓形 */
+    padding: 0;             /* 清除原本的內距 */
+    
+    /* 讓箭頭在圓圈中完美居中 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    /* 增加一點立體感 (可選) */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* 滑鼠移過去的效果 */
+/* ★★★ 請用這段取代原本所有的 .nav-btn 設定 ★★★ */
+
+.nav-btn {
+    /* 1. 定位設定：絕對定位，確保浮在視窗上 */
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 30005 !important; /* 比 Modal 內容更高 */
+
+    /* 2. 外觀設定：正圓形 */
+    width: 45px !important;
+    height: 45px !important;
+    border-radius: 50% !important;
+    
+    /* 3. 顏色與邊框 */
+    background: rgba(0, 0, 0, 0.8) !important; /* 深黑底色，增加對比 */
+    border: 1px solid #d4af37 !important;
+    color: #d4af37 !important;
+    
+    /* 4. 內容排版：讓箭頭乖乖在圓圈中間 */
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0 !important; /* 清除內距，避免圓形變形 */
+    font-size: 20px !important;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+/* 5. 左右位置強制設定 */
+.nav-btn.prev {
+    left: 10px !important;  /* 固定在左側 */
+    right: auto !important; /* 清除右側設定 */
+}
+
+.nav-btn.next {
+    right: 10px !important; /* 固定在右側 */
+    left: auto !important;  /* 清除左側設定 */
+}
+
+/* 按下或滑鼠經過的效果 */
+.nav-btn:active, .nav-btn:hover {
+    background: #d4af37 !important;
+    color: #000 !important;
+    transform: translateY(-50%) scale(1.1) !important; /* 點擊時稍微放大 */
+}
+
+            :root {
+                --card-w: 80px; 
+                --card-h: 140px;
+            }
+
+            /* 1. 頂部提示文字：允許自動換行 */
+            .hint {
+                top: 12% !important;           /* 位置稍微下來一點 */
+                font-size: 15px !important;
+                padding: 10px 20px !important;
+                width: 85% !important;         /* 限制寬度 */
+                white-space: normal !important; /* ★ 關鍵：允許文字換行 ★ */
+                line-height: 1.5 !important;    /* 增加行高，閱讀舒適 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* 2. 控制面板：維持原本的 Grid 排版 (位置不變) */
+            .controls {
+                bottom: 0; 
+                padding: 15px 15px 35px 15px; 
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                gap: 10px; 
+                background: rgba(0,0,0,0.95);
+                box-sizing: border-box; 
+                
+                display: grid; 
+                grid-template-columns: 1fr 1fr; /* 維持左右兩欄 */
+                grid-template-rows: auto;
+                left: 0; 
+            }
+
+            /* 3. 統一樣式：讓選單(Select) 跟 按鈕(Button) 長得一樣高、一樣大 */
+            #categorySelector, 
+            #spreadBasic, 
+            #spreadAdv, 
+            #btnShuffle, 
+            #btnSpread {
+                font-size: 16px;      /* 字體統一 */
+                padding: 15px 5px;    /* ★ 關鍵：內距加大，讓它們跟按鈕一樣高 ★ */
+                border-radius: 10px;
+                box-sizing: border-box;
+                height: auto;         /* 讓 padding 撐開高度 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* 位置設定 (維持不變) */
+            #categorySelector {
+                grid-column: 1 / -1; /* 跨滿整行 */
+                width: 100%;
+                /* 修飾選單箭頭位置 */
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: rgba(0, 0, 0, 0.8);
+                border: 1px solid #d4af37;
+                background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23d4af37%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+                background-repeat: no-repeat;
+                background-position: right 15px top 50%;
+                background-size: 12px auto;
+                text-align-last: center;
+            }
+
+            #spreadBasic, #spreadAdv {
+                grid-column: span 1; /* 各佔一半 */
+                width: 100%;
+                font-size: 14px; /* 字稍微小一點以免擠不下 */
+                /* 修飾選單 */
+                appearance: none;
+                -webkit-appearance: none;
+                background-color: rgba(0, 0, 0, 0.8);
+                border: 1px solid #d4af37;
+                text-align-last: center;
+            }
+
+            #btnShuffle, #btnSpread {
+                grid-column: span 1; /* 各佔一半 */
+                width: 100%;
+            }
+
+            /* 解牌按鈕維持特大號 */
+            #btnReveal {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding: 18px 0;
+                font-size: 20px;
+                font-weight: bold;
+                background: rgba(241, 196, 15, 0.15);
+                margin-top: 5px;
+                border-radius: 10px;
+            }
+            
+            #btnReset {
+                grid-column: 1 / -1;
+                width: 100%;
+                padding: 12px;
+                border-radius: 10px;
+            }
+        /* ★★★ 請用這段取代原本所有手機版 (@media max-width: 600px) 的 CSS ★★★ */
+@media (max-width: 600px) {
+    :root {
+        --card-w: 80px; 
+        --card-h: 140px;
+    }
+
+    .controls {
+        bottom: 0; 
+        padding: 20px 20px 40px 20px; 
+        width: 100%;
+        border-radius: 25px 25px 0 0;
+        gap: 12px; 
+        background: rgba(0,0,0,0.95);
+        box-sizing: border-box; 
+        
+        /* ★★★ 維持您要的 Grid 排版，絕不更動 ★★★ */
+        display: grid; 
+        grid-template-columns: 1fr 1fr; /* 左右兩欄 */
+        grid-template-rows: auto;
+        justify-items: stretch; /* 確保內容拉伸填滿 */
+    }
+
+    /* 1. 修正選單：背景改深灰(不要死黑)，字體加大 */
+    select, #categorySelector, #spreadBasic, #spreadAdv {
+        max-width: none !important;
+        width: 100% !important;
+        height: 50px !important;
+        font-size: 16px !important;
+        border-radius: 12px;
+        padding: 0 15px;
+        margin-bottom: 5px;
+        
+        /* ★ 關鍵：改用深灰色背景，解決「變黑色」的問題 ★ */
+        background-color: #333 !important; 
+        color: #d4af37 !important;
+        border: 1px solid #d4af37 !important;
+        
+        appearance: menulist !important; /* 保留箭頭 */
+    }
+
+    /* 位置設定：維持 Grid 佈局 */
+    #categorySelector { grid-column: 1 / -1; } /* 運勢佔滿整行 */
+    #spreadBasic { grid-column: span 1; }      /* 基礎佔左邊 */
+    #spreadAdv { grid-column: span 1; }        /* 進階佔右邊 */
+
+    /* 2. 洗牌與展開按鈕 */
+    #btnShuffle, #btnSpread {
+        grid-column: span 1; /* 各佔一半 */
+        width: 100% !important;
+        height: 50px !important;
+        font-size: 18px !important;
+        border-radius: 12px;
+        margin: 0 !important;
+    }
+
+    /* 3. 「開始解牌」按鈕：特大號、佔滿整行 */
+    #btnReveal {
+        grid-column: 1 / -1 !important; /* 強制佔滿整行 */
+        width: 100% !important;
+        padding: 18px 0 !important;     /* 高度增加 */
+        font-size: 22px !important;
+        font-weight: bold;
+        background: rgba(241, 196, 15, 0.15) !important;
+        color: #f1c40f !important;
+        border: 2px solid #f1c40f !important;
+        margin-top: 10px;
+        border-radius: 12px;
+        
+        /* 預設隱藏，讓 JS 打開它 */
+        display: none; 
+    }
+    
+    /* 4. 重置按鈕 */
+    #btnReset {
+        grid-column: 1 / -1 !important;
+        width: 100% !important;
+        padding: 15px !important;
+        font-size: 16px;
+        border-radius: 12px;
+        margin-top: 5px;
+        
+        /* 預設隱藏 */
+        display: none;
+    }
+    
+    /* Modal 箭頭加大 */
+    .nav-btn { font-size: 24px; padding: 15px; }
+}
+}
+        /* --- 桌面區域 --- */
+        .table-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            perspective: 1200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- 卡片本體 --- */
+        .card {
+            width: var(--card-w);
+            height: var(--card-h);
+            position: absolute;
+            transform-style: preserve-3d;
+            left: 50%;
+            top: 50%;
+            margin-left: calc(var(--card-w) / -2);
+            margin-top: calc(var(--card-h) / -2);
+            transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+            transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* 扇形展開特效 */
+        .card.spread:hover {
+            z-index: 999 !important;
+            
+            /* ★★★ 修改：在這一行最後面加上 !important ★★★ */
+            /* 這樣才能覆蓋掉 JS 設定的座標，讓牌浮起來 */
+            transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) translateY(-40px) scale(1.1) !important;
+            
+            box-shadow: 0 15px 30px rgba(0,0,0,0.8);
+            transition: transform 0.2s ease-out; 
+        }
+        .card.spread { box-shadow: -5px 0 10px rgba(0,0,0,0.3); }
+
+        .card-inner {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d; transition: transform 0.8s;
+        }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+
+        .front, .back {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; border-radius: 10px; overflow: hidden;
+        }
+
+        .front {
+    /* 1. 設定背景圖片 */
+    background-image: url('images/back.jpg'); 
+    
+    /* 2. 確保圖片填滿且不重複 */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+
+    /* 3. 邊框顏色可以調整成跟圖片金色一致 */
+    border: 2px solid #d4af37; 
+    
+    /* 4. 加一點內陰影增加立體感 */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+}
+        .back {
+            background: #fff; transform: rotateY(180deg);
+            display: flex; flex-direction: column;
+        }
+        
+        .back-img-container { flex: 1; width: 100%; overflow: hidden; position: relative; }
+        .back img { width: 100%; height: 100%; object-fit: fill; }
+        
+	.back-text {
+ 	   padding: 4px 2px; /* 減少內距 */
+	}
+
+	/* 上方的「位置名稱」(如：過去、現在) */
+	.back-text div:first-child {
+ 	   font-size: 10px !important; /* 原本可能比較大，強制縮小 */
+  	  margin-bottom: 1px !important;
+  	  opacity: 0.9;
+	}
+
+/* 下方的「牌卡名稱」(如：愚者) */
+.card-name-text {
+    font-size: 10px !important; /* 設定為 11px 或 12px */
+    font-weight: bold;
+    line-height: 1.2;
+    text-overflow: ellipsis; /* 超出部分變... */
+}
+        
+/* 修改後的 .card.drawn */
+.card.drawn {
+    /* 1. 關鍵修正：取消原本 CSS 的置中偏移，交給 JS 控制 */
+    margin: 0 !important; 
+    
+    /* 2. 確保定位基準點在正中間 */
+    top: 50%;
+    left: 50%;
+
+    /* 3. 保留過渡動畫 */
+    transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ★★★ 關鍵設定：滑鼠懸停 (Hover) 效果 ★★★ */
+.card.drawn:hover {
+    /* 1. 層級變最高：確保被蓋住的牌會瞬間跑到最上面 */
+    z-index: 9999 !important; 
+    
+    /* 2. 視覺懸浮感：加深陰影，讓它看起來離背景更遠 */
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7) !important;
+    
+    /* 3. 稍微打亮：讓選中的牌看起來發光 */
+    filter: brightness(1.1);
+    
+    /* 4. 滑鼠游標變手型 */
+    cursor: pointer;
+}
+/* 新增：下拉選單樣式 */
+        select {
+            padding: 10px 30px 10px 15px; /* 右邊留多一點空間給箭頭 */
+            font-size: 16px;
+            cursor: pointer;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #d4af37;
+            color: #d4af37;
+            border-radius: 8px;
+            outline: none;
+            text-align: center;
+            text-align-last: center;
+            
+            /* ★ 關鍵修正：保留手機原生的下拉選單箭頭，不然會看起來像沒反應 ★ */
+            appearance: menulist; 
+            -webkit-appearance: menulist;
+        }
+select:hover {
+    background: #d4af37;
+    color: #000;
+}
+option {
+    background: #000;
+    color: #d4af37;
+}
+
+@media (max-width: 600px) {
+    select {
+        max-width: 100px; /* 手機版選單不要太寬 */
+        font-size: 12px;
+    }
+}
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); 
+            
+            /* ★★★ 修改這裡：層級要比 hint (20002) 還高，這樣視窗才會蓋過文字 ★★★ */
+            z-index: 30000 !important; 
+            
+            display: none; justify-content: center; align-items: center;
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .modal-content {
+            background: #1a1a1a; border: 2px solid #d4af37; color: #fff;
+            padding: 0; width: 90%; max-width: 550px; border-radius: 15px;
+            text-align: center; box-shadow: 0 0 40px rgba(212, 175, 55, 0.2);
+            transform: translateY(20px); transition: transform 0.3s;
+            overflow: hidden; display: flex; flex-direction: column;
+            max-height: 85vh;
+        }
+        .modal-header {
+            background: linear-gradient(90deg, #2c3e50, #000);
+            padding: 20px; border-bottom: 1px solid #d4af37;
+        }
+        .modal-title { color: #d4af37; font-size: 22px; font-weight: bold; margin: 0;}
+        .modal-subtitle { color: #aaa; font-size: 14px; margin-top: 5px; }
+        .modal-body {
+            padding: 20px; overflow-y: auto; flex: 1; text-align: left; line-height: 1.6; color: #ddd;
+        }
+        /* 第一層樣式 */
+        .image-desc-box {
+            background: rgba(255,255,255,0.05); padding: 15px;
+            border-radius: 8px; margin-bottom: 20px; font-size: 15px;
+            border-left: 3px solid #d4af37;
+        }
+        .category-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;
+        }
+        .cat-btn {
+            background: transparent; border: 1px solid #555; color: #ccc;
+            padding: 10px 5px; border-radius: 8px; cursor: pointer;
+            transition: all 0.2s; font-size: 14px;
+        }
+        .cat-btn:hover { background: #d4af37; color: #000; border-color: #d4af37; }
+        /* 第二層樣式 */
+        .detail-view { display: none; animation: fadeIn 0.3s; }
+        .detail-title {
+            color: #f1c40f; font-size: 18px; font-weight: bold; margin-bottom: 10px;
+            text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px;
+        }
+        .detail-content { font-size: 15px; margin-bottom: 20px; }
+        .back-btn {
+            width: 100%; padding: 10px; background: #444; color: white;
+            border: none; border-radius: 8px; cursor: pointer; margin-top: 10px;
+        }
+        .back-btn:hover { background: #666; }
+        .modal-footer { padding: 15px; background: #111; border-top: 1px solid #333; }
+        .modal-close {
+            background: #d4af37; color: #000; border: none; padding: 10px 40px;
+            border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="hint" id="statusText">請準備開始儀式</div>
+    <div class="table-area" id="tableArea"></div>
+<div id="focusOverlay">
+    <div class="focus-text">請想著你的問題...</div>
+</div>
+
+<div class="controls">
+    <select id="categorySelector">
+        <option value="general">🔮 綜合運勢</option>
+        <option value="love">❤️ 愛情情感</option>
+        <option value="work">💼 工作事業</option>
+        <option value="finance">💰 財務金錢</option>
+        <option value="academic">🎓 學業考試</option>
+        <option value="friendship">🤝 人際關係</option>
+        <option value="family">🏠 家庭親情</option>
+    </select>
+
+    <select id="spreadBasic" onchange="changeSpread('basic')">
+        <option value="" disabled selected>🔰 基礎牌陣</option>
+        <option value="single">單張牌 </option>
+        <option value="time">時間之流 (過去/現在/未來)</option>
+	<option value="happiness">幸福指數 (本月運勢)</option>
+        <option value="self">自我探索 (了解自己的內心)</option>
+	<option value="find_partner">尋找對象占卜法</option>
+        <option value="choice">二擇一 (兩難選擇)</option>
+	<option value="friendship">友誼占卜 (占卜雙方友誼)</option>
+    </select>
+
+    <select id="spreadAdv" onchange="changeSpread('adv')">
+        <option value="" disabled selected>✨ 進階牌陣</option>
+        <option value="hexagram">六芒星 (找出事情的因由)</option>
+        <option value="love_real">愛情真心 (了解自己和對方的心意)</option>
+        <option value="lovers_pyramid">戀人金字塔 (兩人發展的可能性)</option> 
+        <option value="celtic">克爾特十字 (尋找問題真正所在)</option>
+	<option value="future">未來發展占卜法(占卜未來的自己)</option>
+	<option value="karmic">卡爾米克 (探討自己的命運)</option>
+    </select>
+    <button id="btnShuffle" onclick="startRitual()">洗牌</button>
+    <button id="btnSpread" onclick="spreadDeck()" disabled>展開</button>
+    
+    <button id="btnReveal" onclick="startReveal()" style="display:none; border-color: #f1c40f; color: #f1c40f;">開始解牌</button>
+    
+    <button id="btnReset" onclick="resetGame()" style="display:none; border-color: #fff; color: #000;">重置</button>
+</div>
+
+    <div class="modal-overlay" id="meaningModal">
+        <div class="modal-content">
+		<button class="nav-btn prev" onclick="navigateCard(-1)">&#10094;</button>
+   		<button class="nav-btn next" onclick="navigateCard(1)">&#10095;</button>
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">牌名</div>
+                <div class="modal-subtitle" id="modalStatus">正位 / 逆位</div>
+            </div>
+            <div class="modal-body">
+                <div id="mainView">
+                    <div class="image-desc-box">
+                        <strong style="color: #d4af37;">【牌面圖解】</strong><br>
+                        <span id="imageDescText">...</span>
+                    </div>
+                    <p style="text-align: center; color: #aaa; margin-bottom: 10px;">請選擇想了解的面向：</p>
+                    <div class="category-grid">
+                        <button class="cat-btn" onclick="showDetail('character')">👤 人物</button>
+                        <button class="cat-btn" onclick="showDetail('work')">💼 工作</button>
+                        <button class="cat-btn" onclick="showDetail('love')">❤️ 愛情</button>
+                        <button class="cat-btn" onclick="showDetail('friendship')">🤝 友情</button>
+                        <button class="cat-btn" onclick="showDetail('family')">🏠 親情</button>
+                        <button class="cat-btn" onclick="showDetail('academic')">🎓 學業</button>
+                        <button class="cat-btn" onclick="showDetail('finance')">💰 財務</button>
+                    </div>
+                    <div class="modal-card-img-container">
+                        <p style="margin: 20px 0 10px; color: #666; font-size: 12px;">▼ 下滑檢視牌面 ▼</p>
+                        <img id="modalCardImage" src="" class="modal-card-img" alt="牌面圖案">
+                    </div>
+                </div> <div id="detailView" class="detail-view">
+                    <div class="detail-title" id="detailTitle">類別標題</div>
+                    <div class="detail-content" id="detailContent">內容...</div>
+                    <button class="back-btn" onclick="backToMain()">⬅ 返回選單</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-close" onclick="closeModal()">關閉視窗</button>
+            </div>
+        </div>
+    </div>
+
+<script src="tarot-data.js"></script>
+<script>
+    // --- 設定與全域變數 ---
+    const TOTAL_CARDS = 78;
+    let currentViewingIndex = 0;
+    let cardsDOM = [];
+    let isSpread = false;
+    let hasDrawn = false;
+    let isAnimating = false; 
+    let currentResult = null;
+    let activeCardData = null;
+    let activeIsReversed = false;
+    let shuffledDeck = []; 
+    let selectedCardsDOM = []; // 暫存已選擇的牌
+
+    // --- 1. 定義牌陣資料 ---
+    const SPREAD_DATA = {
+        'happiness': {
+            name: "幸福指數占卜法",
+            positions: ["本週運程", "下週運程", "第三週運程", "第四週運程", "第五週運程"],
+            layout: [{x: -240, y: 0}, {x: -120, y: 0}, {x: 0, y: 0}, {x: 120, y: 0}, {x: 240, y: 0}],
+            desc: "預測整個月的每週運勢起伏。"
+        },
+        'single': {
+            name: "單張牌占卜",
+            positions: ["核心"],
+            layout: [{x: 0, y: 0}],
+            desc: "適合簡單的是非題或每日運勢。"
+        },
+        'time': {
+            name: "時間之流牌陣",
+            positions: ["過去的經驗", "現在的狀況", "未來的預測"],
+            layout: [{x: -120, y: 0}, {x: 0, y: 0}, {x: 120, y: 0}],
+            desc: "檢視事情的來龍去脈。"
+        },
+        'self': {
+            name: "自我探索牌陣",
+            positions: ["內心深處", "精神生活", "知識領域", "感情生活"],
+            layout: [{x: 0, y: 0}, {x: 0, y: -250}, {x: -200, y: 250}, {x: 200, y: 250}],
+            desc: "全方位了解自己的身心靈狀態。"
+        },
+        'find_partner': {
+            name: "尋找對象占卜法",
+            positions: ["現在的心情和處境", "希望追求的類型", "你不喜歡的類型", "該採取的行動", "未來的發展"],
+            layout: [{x: 0, y: 0}, {x: -200, y: -200}, {x: 200, y: -200}, {x: -200, y: 200}, {x: 200, y: 200}],
+            desc: "專為單身者設計。"
+        },
+        'choice': {
+            name: "二擇一牌陣",
+            positions: ["現況", "選擇A的過程", "選擇B的過程", "選擇A的結果", "選擇B的結果"],
+            layout: [{x: 0, y: 150}, {x: -100, y: 0}, {x: -180, y: -120}, {x: 100, y: 0}, {x: 180, y: -120}],
+            desc: "面臨抉擇時使用。"
+        },
+        'friendship': {
+            name: "友誼占卜法",
+            positions: ["你對對方的看法", "對方對你的看法", "你認為目前關係", "對方認為目前關係", "你期望未來發展", "對方期望未來發展"],
+            layout: [{x: -120, y: -100}, {x: -120, y: 100}, {x: 0, y: -100}, {x: 0, y: 100}, {x: 120, y: -100}, {x: 120, y: 100}],
+            desc: "深度解析雙方對這段關係的看法。"
+        },
+        'celtic': {
+            name: "克爾特十字牌陣",
+            positions: ["現況", "阻礙", "內在(內心的動機、問題的根源)", "外在(自我的期待、潛在可能性)", "過去", "未來", "自我(面對事情的態度)", "環境(別人對自己的看法、周遭環境)", "引導(這次會讓你學到什麼)", "結果"],
+            layout: [
+                {x: -150, y: 0}, {x: -150, y: 0, rotate: 90}, {x: -150, y: -250}, {x: -150, y: 250}, 
+                {x: -250, y: 0}, {x: 0, y: 0}, {x: 180, y: 300}, {x: 180, y: 100}, {x: 180, y: -100}, {x: 180, y: -300}
+            ],
+            desc: "經典的深度剖析牌陣。"
+        },
+        'hexagram': {
+            name: "六芒星牌陣",
+            positions: ["過去(問題的原因)", "現在(問題現在處於何種狀態)", "未來(之後會有甚麼變化)", "解決方法", "環境(跟此事件有關的人事物情況)", "願望(你尚未察覺但卻是你心中真正所要)", "結果"],
+            layout: [{x: 0, y: -200}, {x: 150, y: 80}, {x: -150, y: 80}, {x: 0, y: 200}, {x: -150, y: -80}, {x: 150, y: -80}, {x: 0, y: 0}],
+            desc: "全方位深入分析。"
+        },
+        'lovers_pyramid': {
+            name: "戀人金字塔",
+            positions: ["你對對方的想法", "對方對你的想法", "你對兩人關係的看法", "有沒有結婚的打算", "你該做的行動", "兩人目前的顧慮", "最後結果"],
+            layout: [{x: 0, y: 220}, {x: -130, y: 120}, {x: 130, y: 120}, {x: 0, y: 20}, {x: -130, y: -80}, {x: 130, y: -80}, {x: 0, y: -180}],
+            desc: "預測兩人發展可能性。"
+        },
+        'karmic': {
+            name: "卡爾米克展開法",
+            positions: ["你的宿命", "你的個性", "影響你這輩子的重大事件", "這輩子第二種影響", "你來這世上的目的", "你這輩子能完成什麼", "你這輩子會學習到什麼"],
+            layout: [{x: 180, y: 180}, {x: 100, y: 180}, {x: -180, y: 180}, {x: -100, y: 180}, {x: 100, y: -150}, {x: -100, y: -150}, {x: 0, y: 0}],
+            desc: "探討命運與靈魂使命。"
+        },
+        'future': {
+            name: "未來發展占卜法",
+            positions: ["現況", "愛情", "事業", "財運", "成就", "結果"],
+            layout: [{x: 0, y: -250}, {x: -250, y: -100}, {x: 250, y: -100}, {x: -250, y: 100}, {x: 250, y: 100}, {x: 0, y: 250}],
+            desc: "分析事件發展脈絡。"
+        },
+        'love_real': {
+            name: "愛情真心占卜法",
+            positions: ["你的看法", "對方的看法", "兩人關係變化對你的影響", "兩人關係變化對對方的影響", "你未來的心情", "結果", "將來可能的障礙", "對方未來的心情"],
+            layout: [{x: -150, y: -120}, {x: 150, y: -120}, {x: 0, y: -300}, {x: 0, y: -50}, {x: 0, y: 100}, {x: 0, y: 200}, {x: -140, y: 100}, {x: 140, y: 100}],
+            desc: "深度剖析雙方心意。"
+        }
+    };
+
+    let currentSpreadKey = 'single';
+    let drawnCount = 0;
+    let drawnResults = []; 
+    
+    // --- 切換選單邏輯 ---
+    function changeSpread(source) {
+        const basicSelect = document.getElementById('spreadBasic');
+        const advSelect = document.getElementById('spreadAdv');
+
+        if (source === 'basic') {
+            advSelect.value = "";
+            currentSpreadKey = basicSelect.value;
+        } else if (source === 'adv') {
+            basicSelect.value = "";
+            currentSpreadKey = advSelect.value;
+        }
+        resetGameDataOnly();
+    }
+
+    // --- 初始化 ---
+    function init() {
+        const table = document.getElementById('tableArea');
+        table.innerHTML = "";
+        cardsDOM = [];
+        shuffledDeck = Array.from({length: TOTAL_CARDS}, (_, i) => i);
+
+        for (let i = 0; i < TOTAL_CARDS; i++) {
+            const el = document.createElement('div');
+            el.className = 'card';
+            el.dataset.index = i;
+            el.style.setProperty('--tx', '0px');
+            el.style.setProperty('--ty', '0px');
+            el.style.setProperty('--rot', '0deg');
+            el.style.zIndex = i;
+            el.innerHTML = `<div class="card-inner"><div class="front"></div><div class="back"></div></div>`;
+            el.onclick = () => onCardClick(el);
+            table.appendChild(el);
+            cardsDOM.push(el);
+        }
+        
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        if(spreadInfo) {
+             updateStatus(`目前模式：${spreadInfo.name}。請先選擇「占卜面向」並點擊「洗牌」`);
+        } else {
+             updateStatus("請點擊「洗牌」開始儀式");
+        }
+    }
+
+    // --- 重置遊戲數據 ---
+    function resetGameDataOnly() {
+        drawnCount = 0;
+        drawnResults = [];
+        selectedCardsDOM = []; 
+        hasDrawn = false;
+        isSpread = false;
+        init(); 
+        document.getElementById('btnShuffle').style.display = 'inline-block';
+        document.getElementById('btnSpread').style.display = 'inline-block';
+        document.getElementById('btnSpread').disabled = true;
+        document.getElementById('btnShuffle').disabled = false;
+        document.getElementById('btnReset').style.display = 'none';
+        document.getElementById('btnReveal').style.display = 'none';
+    }
+
+    // --- 洗牌邏輯 ---
+    function internalShuffle() {
+        for (let i = shuffledDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
+        }
+    }
+
+async function startRitual() {
+        // 1. 取得介面元素
+        const overlay = document.getElementById('focusOverlay');
+        const controls = document.querySelector('.controls');
+        const hint = document.getElementById('statusText');
+        
+        // 2. 隱藏介面，顯示冥想畫面
+        controls.style.opacity = '0'; 
+        hint.style.opacity = '0';
+        overlay.style.display = 'flex'; 
+        void overlay.offsetWidth; 
+        overlay.style.opacity = '1';
+        
+        // 3. 等待 3 秒 (冥想時間)
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // ★★★ 隱藏下拉選單，只留下按鈕 (這是你上一個需求) ★★★
+        document.getElementById('categorySelector').style.display = 'none';
+        document.getElementById('spreadBasic').style.display = 'none';
+        document.getElementById('spreadAdv').style.display = 'none';
+
+        // 4. 淡出冥想畫面，顯示回介面
+        overlay.style.opacity = '0';
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        overlay.style.display = 'none';
+        hint.style.opacity = '1'; 
+        controls.style.opacity = '1';
+
+        // 5. 開始執行洗牌動畫邏輯
+        document.getElementById('btnShuffle').disabled = true;
+        updateStatus("正在打亂牌陣...");
+        internalShuffle();
+        
+        await animateMessyShuffle();
+        
+        updateStatus("整理牌堆...");
+        await animateGather();
+        
+        updateStatus("切牌...");
+        await animateCutDeck();
+        
+        // 6. 動畫結束，啟用展開按鈕
+        updateStatus("牌堆已淨化，請點擊「展開」");
+        document.getElementById('btnSpread').disabled = false;
+    }
+
+    function animateMessyShuffle() {
+        return new Promise(resolve => {
+            cardsDOM.forEach(card => {
+                const tx = (Math.random() - 0.5) * window.innerWidth * 0.8;
+                const ty = (Math.random() - 0.5) * window.innerHeight * 0.6;
+                const rot = (Math.random() - 0.5) * 720;
+                card.style.setProperty('--tx', tx + 'px');
+                card.style.setProperty('--ty', ty + 'px');
+                card.style.setProperty('--rot', rot + 'deg');
+            });
+            setTimeout(resolve, 1000);
+        });
+    }
+
+    function animateGather() {
+        return new Promise(resolve => {
+            cardsDOM.forEach((card, index) => {
+                card.style.setProperty('--tx', '0px');
+                card.style.setProperty('--ty', -index * 0.2 + 'px');
+                card.style.setProperty('--rot', '0deg');
+                card.style.zIndex = index;
+            });
+            setTimeout(resolve, 800);
+        });
+    }
+    
+    function animateCutDeck() {
+        return new Promise(resolve => {
+            const cutIndex = Math.floor(TOTAL_CARDS / 2);
+            cardsDOM.forEach((card, i) => {
+                if(i >= cutIndex) {
+                    card.style.setProperty('--tx', '120px');
+                    card.style.setProperty('--ty', -i * 0.2 + 'px');
+                    card.style.setProperty('--rot', '5deg');
+                } else {
+                    card.style.setProperty('--tx', '-120px');
+                    card.style.setProperty('--ty', -i * 0.2 + 'px');
+                    card.style.setProperty('--rot', '-5deg');
+                }
+            });
+            setTimeout(() => {
+                cardsDOM.forEach((card, index) => {
+                    card.style.setProperty('--tx', '0px');
+                    card.style.setProperty('--ty', -index * 0.2 + 'px');
+                    card.style.setProperty('--rot', '0deg');
+                });
+                setTimeout(resolve, 800);
+            }, 800);
+        });
+    }
+
+    function spreadDeck() {
+        isSpread = true;
+        document.getElementById('btnSpread').disabled = true;
+        document.getElementById('btnShuffle').style.display = 'none';
+        document.getElementById('btnSpread').style.display = 'none';
+        
+        const isMobile = window.innerWidth < 600;
+        const angleRange = isMobile ? 100 : 140; 
+        const radius = isMobile ? 300 : 500; 
+        const yOffset = isMobile ? 250 : 350;
+        const startAngle = -(angleRange / 2); 
+        const step = angleRange / (TOTAL_CARDS - 1);
+
+        cardsDOM.forEach((card, index) => {
+            const angle = startAngle + (index * step);
+            const radian = angle * (Math.PI / 180);
+            const x = radius * Math.sin(radian);
+            const y = -radius * Math.cos(radian) + yOffset; 
+            
+            card.classList.add('spread'); 
+            
+            card.style.setProperty('--tx', x + 'px');
+            card.style.setProperty('--ty', y + 'px');
+            card.style.setProperty('--rot', angle + 'deg');
+            
+            // 記錄扇形位置
+            card.dataset.fanTx = x;
+            card.dataset.fanTy = y;
+            card.dataset.fanRot = angle;
+
+            card.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg)`;
+            card.style.zIndex = index;
+        });
+
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        updateStatus(`請憑直覺抽出第 1 張牌：【${spreadInfo.positions[0]}】`);
+    }
+
+    // --- 核心：點擊抽牌 (堆疊 + 佈陣) ---
+    function onCardClick(card) {
+        if (isAnimating) return;
+
+        // 1. 如果已經佈陣完成，點擊則是開啟解牌視窗
+        if (hasDrawn && card.classList.contains('drawn')) {
+            const resultIndex = parseInt(card.dataset.drawnIndex);
+            if (!isNaN(resultIndex)) {
+                currentViewingIndex = resultIndex;
+                showModal();
+            }
+            return;
+        }
+
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        const totalNeeded = spreadInfo.positions.length;
+
+        // 2. 選牌階段 (還沒佈陣)
+        if (isSpread && !hasDrawn) {
+            
+            // (A) 如果點到已經選過的牌 -> 取消選擇
+            if (selectedCardsDOM.includes(card)) {
+                selectedCardsDOM = selectedCardsDOM.filter(c => c !== card);
+                card.classList.remove('selected');
+                
+                // 飛回原本扇形位置
+                card.style.setProperty('--tx', card.dataset.fanTx + 'px');
+                card.style.setProperty('--ty', card.dataset.fanTy + 'px');
+                card.style.setProperty('--rot', card.dataset.fanRot + 'deg');
+                card.style.transform = `translate(${card.dataset.fanTx}px, ${card.dataset.fanTy}px) rotate(${card.dataset.fanRot}deg)`;
+                card.style.zIndex = card.dataset.index;
+                
+                updateStatus(`已取消選擇。目前已選 ${selectedCardsDOM.length} / ${totalNeeded} 張`);
+                return;
+            }
+
+            // (B) 檢查是否已選滿
+            if (selectedCardsDOM.length >= totalNeeded) return;
+
+            // (C) 執行選擇：飛到中間堆疊
+            selectedCardsDOM.push(card);
+            card.classList.add('selected'); 
+            
+            const randomRot = (Math.random() * 10 - 5); 
+            // 強制設定 style.transform 覆蓋扇形位置，飛到畫面中央下方堆疊
+            card.style.transform = `translate(0px, 150px) rotate(${randomRot}deg) scale(1)`;
+            card.style.zIndex = 1000 + selectedCardsDOM.length; 
+            
+            let currentCount = selectedCardsDOM.length;
+            if (currentCount < totalNeeded) {
+                updateStatus(`已選擇 ${currentCount} / ${totalNeeded} 張，下一張位置：【${spreadInfo.positions[currentCount]}】`);
+            } else {
+                // (D) 選滿了！自動觸發佈陣
+                updateStatus(`已選滿 ${totalNeeded} 張，正在佈陣...`);
+                setTimeout(performBatchPlacement, 600);
+            }
+        }
+    }
+// --- 批次佈陣動畫 (修改版：加入動態等比例縮放) ---
+    function performBatchPlacement() {
+        isAnimating = true;
+        const spreadInfo = SPREAD_DATA[currentSpreadKey];
+        
+        // 1. 先把沒被選到的牌隱藏起來
+        cardsDOM.forEach(c => {
+            if (!selectedCardsDOM.includes(c)) {
+                c.style.transition = "opacity 0.5s";
+                c.style.opacity = '0';
+                c.style.pointerEvents = 'none';
+            }
+        });
+
+        // 2. 依序將選好的牌飛到指定位置
+        selectedCardsDOM.forEach((card, index) => {
+            // 取得對應的資料
+            const cardIndex = parseInt(card.dataset.index);
+            const drawId = shuffledDeck[cardIndex];
+            const isReversed = Math.random() < 0.5;
+            const currentPosName = spreadInfo.positions[index];
+            const currentLayout = spreadInfo.layout[index];
+            
+            let data = null;
+            if (typeof getCardData === 'function') { data = getCardData(drawId); }
+            else { data = { name: "讀取中...", id: drawId }; }
+
+            // 儲存結果
+            drawnResults.push({
+                id: drawId, name: data.name, isReversed: isReversed,
+                positionName: currentPosName, index: index
+            });
+
+            // 設定 DOM 狀態
+            card.dataset.drawnIndex = index;
+            card.classList.remove('spread');
+            card.classList.remove('selected'); 
+            card.classList.add('drawn');       
+
+            // ★★★ 修改重點：動態計算縮放比例 (Dynamic Scale) ★★★
+            const screenW = window.innerWidth;
+            const isMobile = screenW < 600;
+            
+            // 1. 計算空間與位置的縮放 (避免牌重疊太嚴重)
+            const spaceScale = isMobile ? 0.45 : 1; 
+
+            // 2. 計算卡片本身的縮放大小 (依據螢幕寬度等比例調整)
+            let sizeScale;
+            if (isMobile) {
+                // 手機版：根據螢幕寬度計算，讓牌盡量大但不出界
+                // 公式：螢幕越寬，牌越大。限制在 0.6 ~ 0.9 倍之間
+                sizeScale = screenW / 500; 
+                if (sizeScale > 0.9) sizeScale = 0.9; // 最大不超過 0.9
+                if (sizeScale < 0.6) sizeScale = 0.6; // 最小不低於 0.6
+            } else {
+                // 電腦版：固定放大 1.4 倍
+                sizeScale = 1.4;
+            }
+            
+            const finalX = currentLayout.x * spaceScale;
+            const finalY = currentLayout.y * spaceScale;
+            
+            // 如果牌陣設計有旋轉角度，則讀取；否則為 0
+            let rotateDeg = currentLayout.rotate || 0;
+
+            // 設定動畫延遲，讓牌一張一張飛過去
+// 請找到 performBatchPlacement 函式最下方的 setTimeout 區塊
+            setTimeout(() => {
+                // 這裡的 scale(${sizeScale}) 就是控制等比例縮放的關鍵
+                card.style.transform = `translate(calc(-50% + ${finalX}px), calc(-50% + ${finalY}px)) rotate(${rotateDeg}deg) scale(${sizeScale})`;
+                card.style.zIndex = 100 + index;
+                
+                // 預先填入背面內容 (保持蓋牌狀態)
+                const backDiv = card.querySelector('.back');
+                const imgPath = `images/${drawId}.jpg`;
+
+                // ★★★ 修改這裡：移除下方的文字區塊，並強制圖片滿版 ★★★
+                backDiv.innerHTML = `
+                    <div class="back-img-container" style="height: 100%; width: 100%; display: block;">
+                        <img src="${imgPath}" 
+                            style="width: 100%; height: 100%; object-fit: fill; display: block; ${isReversed ? 'transform: rotate(180deg)' : ''}" 
+                            onerror="this.src='https://via.placeholder.com/300x525?text=Card'">
+                    </div>
+                `;
+            }, index * 200); 
+        });
+
+        // 3. 動畫結束後顯示按鈕
+        setTimeout(() => {
+            updateStatus("牌陣已完成，請點擊下方「開始解牌」");
+    
+            const btnReveal = document.getElementById('btnReveal');
+            const btnReset = document.getElementById('btnReset');
+    
+            // ★★★ 關鍵修正：確保按鈕樣式正確顯示 ★★★
+            // 清除之前的 display:none，強制設定為 inline-block (配合 Grid)
+            btnReveal.style.cssText = "display: inline-block !important; border-color: #f1c40f; color: #f1c40f;";
+            btnReset.style.cssText = "display: inline-block !important; border-color: #fff; color: #000;";
+            
+            hasDrawn = true;
+            isAnimating = false;
+        }, selectedCardsDOM.length * 200 + 500);
+    }
+    function startReveal() {
+        if (drawnResults.length === 0) return;
+        
+        currentViewingIndex = 0;
+        showModal();
+
+        // ★★★ 修改重點 2：開始解牌後，隱藏所有選單與操作按鈕，只留重置 ★★★
+        document.getElementById('categorySelector').style.display = 'none';
+        document.getElementById('spreadBasic').style.display = 'none';
+        document.getElementById('spreadAdv').style.display = 'none';
+        document.getElementById('btnShuffle').style.display = 'none';
+        document.getElementById('btnSpread').style.display = 'none';
+        
+        // 隱藏「開始解牌」按鈕自己
+        //document.getElementById('btnReveal').style.display = 'none';
+
+        // 確保「重置」按鈕是顯示的 (且因為是 Grid 排版，它會自動補位)
+        const btnReset = document.getElementById('btnReset');
+        btnReset.style.display = 'inline-block';
+        // 如果希望重置按鈕這時候變大或滿版，可以在這裡動態調整 class，或是依賴 CSS Grid 自動填滿
+    }
+
+    function navigateCard(direction) {
+        const nextIndex = currentViewingIndex + direction;
+        if (nextIndex >= 0 && nextIndex < drawnResults.length) {
+            currentViewingIndex = nextIndex;
+            showModal();
+        }
+    }
+
+    // --- 詳細視窗 ---
+    function showModal() {
+        currentResult = drawnResults[currentViewingIndex];
+        
+        if(!currentResult) return;
+        let data = getCardData(currentResult.id);
+        if (!data) return;
+
+        activeCardData = data;
+        activeIsReversed = currentResult.isReversed;
+        
+        const prevBtn = document.querySelector('.nav-btn.prev');
+        const nextBtn = document.querySelector('.nav-btn.next');
+        if(prevBtn) prevBtn.style.display = (currentViewingIndex === 0) ? 'none' : 'block';
+        if(nextBtn) nextBtn.style.display = (currentViewingIndex === drawnResults.length - 1) ? 'none' : 'block';
+
+        document.getElementById('modalTitle').innerHTML = 
+            `<span style="font-size:0.6em; color:#d4af37; display:block;">位置 ${currentResult.index + 1}：${currentResult.positionName}</span>` + 
+            data.name;
+
+        document.getElementById('modalStatus').innerText = activeIsReversed ? "【逆位】 Reversed" : "【正位】 Upright";
+        document.getElementById('modalStatus').style.color = activeIsReversed ? "#e74c3c" : "#2ecc71";
+        document.getElementById('imageDescText').innerText = data.image_desc || "暫無圖解資料";
+
+        const modalImg = document.getElementById('modalCardImage');
+        if(modalImg) {
+            modalImg.src = `images/${currentResult.id}.jpg`;
+            modalImg.style.transform = activeIsReversed ? "rotate(180deg)" : "none";
+        }
+
+        const selectedCategory = document.getElementById('categorySelector').value;
+        if (activeCardData.categories && activeCardData.categories[selectedCategory]) {
+            showDetail(selectedCategory);
+            document.getElementById('mainView').style.display = 'none'; 
+        } else {
+            document.getElementById('mainView').style.display = 'block';
+            document.getElementById('detailView').style.display = 'none';
+        }
+        
+        // 連動桌面的牌
+        document.querySelectorAll('.card').forEach(c => c.style.filter = 'brightness(1)');
+        const targetCard = cardsDOM.find(c => parseInt(c.dataset.drawnIndex) === currentViewingIndex);
+        if(targetCard) {
+            targetCard.style.filter = 'brightness(1.5)';
+            targetCard.style.zIndex = 9999;
+            if (!targetCard.classList.contains('flipped')) {
+                targetCard.classList.add('flipped');
+            }
+        }
+
+        document.getElementById('meaningModal').classList.add('active');
+    }
+
+    function showDetail(categoryKey) {
+        if (!activeCardData || !activeCardData.categories || !activeCardData.categories[categoryKey]) {
+            alert("此項目暫無詳細資料");
+            return;
+        }
+        const catData = activeCardData.categories[categoryKey];
+        document.getElementById('detailTitle').innerText = catData.label;
+        const content = activeIsReversed ? catData.reversed : catData.upright;
+        
+        document.getElementById('detailContent').innerHTML = `
+            <div style="margin-bottom: 10px; color: #aaa; font-size: 13px;">
+                ${activeIsReversed ? "▼ 逆位指引" : "▲ 正位指引"}
+            </div>
+            <div style="line-height: 1.8; color: #fff;">${content}</div>
+        `;
+        document.getElementById('mainView').style.display = 'none';
+        document.getElementById('detailView').style.display = 'block';
+    }
+
+    function backToMain() {
+        document.getElementById('detailView').style.display = 'none';
+        document.getElementById('mainView').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('meaningModal').classList.remove('active');
+    }
+    
+    document.getElementById('meaningModal').onclick = function(e) {
+        if(e.target === this) closeModal();
+    }
+
+    function resetGame() {
+        location.reload();
+    }
+
+    function updateStatus(text) {
+        const el = document.getElementById('statusText');
+        el.innerText = text;
+        el.style.opacity = 1;
+    }
+
+    init();
+</script>
+</body>
+</html>
         }
         :root {
             --card-w: 120px;
